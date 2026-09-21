@@ -102,7 +102,55 @@ app.delete('/api/subjects/:subjectKey/paragraphs/:id', (req, res) => {
   });
 });
 
+const filePath = path.join(__dirname, 'db.json');
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Сервер запущен на порту ${PORT}`);
+});
+
+// Маршрут для создания нового предмета
+app.post('/api/subjects', (rs, res) => {
+  const { key, name, adminKey } = rs.body;
+
+  // Проверяем секретный ключ администратора (замени 'твой_пароль' на свой реальный пароль)
+  const SECRET_ADMIN_KEY = process.env.ADMIN_KEY || 'stinery123';
+  if (adminKey !== SECRET_ADMIN_KEY) {
+    return res.status(403).json({ error: 'Неверный секретный ключ администратора' });
+  }
+
+  if (!key || !name) {
+    return res.status(400).json({ error: 'Укажите системный ключ и название предмета' });
+  }
+
+  fs.readFile(filePath, 'utf8', (err, data) => {
+    if (err) {
+      return res.status(500).json({ error: 'Ошибка чтения базы данных' });
+    }
+
+    let db = {};
+    try {
+      db = JSON.parse(data);
+    } catch (e) {
+      db = {};
+    }
+
+    // Проверяем, существует ли уже такой предмет
+    if (db[key]) {
+      return res.status(400).json({ error: 'Предмет с таким ключом уже существует' });
+    }
+
+    // Создаем новый предмет со списком параграфов по умолчанию
+    db[key] = {
+      name: name,
+      paragraphs: []
+    };
+
+    fs.writeFile(filePath, JSON.stringify(db, null, 2), 'utf8', (err) => {
+      if (err) {
+        return res.status(500).json({ error: 'Ошибка сохранения базы данных' });
+      }
+      res.json({ success: true, subject: db[key] });
+    });
+  });
 });
